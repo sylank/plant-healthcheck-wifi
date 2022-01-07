@@ -19,29 +19,15 @@ String password;
 
 void setup() {
   Serial.begin(115200);
-  Serial.println();
-  Serial.println("Module started");
 
   server.on("/", HTTP_GET, handleRoot);        // Call the 'handleRoot' function when a client requests URI "/"
-  server.on("/login", HTTP_POST, handleLogin); // Call the 'handleLogin' function when a POST request is made to URI "/login"
+  server.on("/config", HTTP_POST, handleDone); // Call the 'handleLogin' function when a POST request is made to URI "/login"
   server.onNotFound(handleNotFound);           // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
 
-  WiFi.begin();
-  int i = 0;
-  while (WiFi.status() != WL_CONNECTED) { // Wait for the Wi-Fi to connect
-    delay(1000);
-    Serial.print(++i); Serial.print(' ');
-  }
-
-  Serial.println('\n');
-  Serial.println("Connection established!");  
-  Serial.print("IP address:\t");
-  Serial.println(WiFi.localIP());         // Send the IP address of the ESP8266 to the computer
+  connectToNetwork("","");
 }
 
 void loop() {
-  Serial.printf("Stations connected = %d\n", WiFi.softAPgetStationNum());
-  delay(3000);
   server.handleClient();                     // Listen for HTTP requests from clients
 
   String serialCmd = readFromSerialIfAvailable();
@@ -98,23 +84,29 @@ void operationState() {
   WiFi.setAutoReconnect(false);
   WiFi.disconnect();
   
-  WiFi.begin(ssid, password);             // Connect to the network
-  Serial.print("Connecting to ");
-  Serial.print(ssid); Serial.println(" ...");
-
-  int i = 0;
-  while (WiFi.status() != WL_CONNECTED) { // Wait for the Wi-Fi to connect
-    delay(1000);
-    Serial.print(++i); Serial.print(' ');
-  }
-
+  connectToNetwork(ssid, password);
+  
   Serial.println('\n');
   Serial.println("Connection established!");  
   Serial.print("IP address:\t");
-  Serial.println(WiFi.localIP());         // Send the IP address of the ESP8266 to the computer
-
+  Serial.println(WiFi.localIP());
+  
   WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
+}
+
+void connectToNetwork(String ssid, String password) {
+  if (ssid == "" && password == "") {
+    WiFi.begin();
+  } else {
+    WiFi.begin(ssid, password);
+  }
+
+  int i = 0;
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(++i); Serial.print(' ');
+  }
 }
 
 bool sendDataToTCPServer(String message) {
@@ -144,30 +136,35 @@ bool sendDataToTCPServer(String message) {
   return true;
 }
 
-void handleRoot() {                          // When URI / is requested, send a web page with a button to toggle the LED
-  server.send(200, "text/html", "<form action=\"/login\" method=\"POST\"><input type=\"text\" name=\"username\" placeholder=\"Username\"></br><input type=\"password\" name=\"password\" placeholder=\"Password\"></br><input type=\"submit\" value=\"Login\"></form><p>Try 'John Doe' and 'password123' ...</p>");
+void handleRoot() {
+  String s = MAIN_page;
+  server.send(200, "text/html", s);
 }
 
-void handleLogin() {                         // If a POST request is made to URI /login
-  if( ! server.hasArg("username") || ! server.hasArg("password") 
-      || server.arg("username") == NULL || server.arg("password") == NULL) { // If the POST request doesn't have username and password data
-    server.send(400, "text/plain", "400: Invalid Request");         // The request is invalid, so send HTTP status 400
+void handleDone() {
+  if( ! server.hasArg("ssid") || ! server.hasArg("password") 
+      || server.arg("ssid") == NULL || server.arg("password") == NULL) {
+    String s = ERROR_page;
+    server.send(400, "text/html", s);
     return;
   }
-//  if(server.arg("username") == "John Doe" && server.arg("password") == "password123") { // If both the username and the password are correct
-//    server.send(200, "text/html", "<h1>Welcome, " + server.arg("username") + "!</h1><p>Login successful</p>");
-//  } else {                                                                              // Username and password don't match
-//    server.send(401, "text/plain", "401: Unauthorized");
-//  }
 
-  ssid = server.arg("username");
+  ssid = server.arg("ssid");
   password = server.arg("password");
-  server.send(200, "text/html", "<h1>connecting to: " + server.arg("username") + " " + server.arg("password"));
+  Serial.println("Configuration:");
+  Serial.println(ssid);
+  Serial.println(password);
+
+  String s = DONE_page;
+  server.send(200, "text/html", s);
+
+  delay(3000);
+  operationState();
 }
 
 void handleNotFound(){
-  String s = MAIN_page;
-  server.send(200, "text/html", s); // Send HTTP status 404 (Not Found) when there's no handler for the URI in the request
+  String s = NOT_FOUND_page;
+  server.send(200, "text/html", s);
 }
 
 String readFromSerialIfAvailable() {
