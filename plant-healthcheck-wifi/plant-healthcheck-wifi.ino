@@ -1,34 +1,49 @@
 #include "ESP8266WiFi.h"
 #include <ESP8266WebServer.h>
+#include <ESP8266HTTPClient.h>
+
+#include <stdarg.h>
+#define SERIAL_PRINTF_MAX_BUFF      256
+#define F_PRECISION                   6
+
 #include "pages.h"
+
 
 ESP8266WebServer server(80);
 
-void handleRoot();              // function prototypes for HTTP handlers
+void handleRoot();
 void handleLogin();
 void handleNotFound();
 
 String readFromSerialIfAvailable();
 void processSerialCommand(String cmd);
-void configState();
+void configState(String message);
 void operationState();
 bool sendDataToTCPServer(String message);
 
-String ssid;
-String password;
+void serialPrintf(const char *fmt, ...);
+
+String g_ssid = "";
+String g_password = "";
 
 void setup() {
   Serial.begin(115200);
 
-  server.on("/", HTTP_GET, handleRoot);        // Call the 'handleRoot' function when a client requests URI "/"
-  server.on("/config", HTTP_POST, handleDone); // Call the 'handleLogin' function when a POST request is made to URI "/login"
-  server.onNotFound(handleNotFound);           // When a client requests an unknown URI (i.e. something other than "/"), call function "handleNotFound"
+  while (!Serial) {
+    ; // wait for serial port to connect. Needed for native USB
+  }
+
+  server.on("/", HTTP_GET, handleRoot);
+  server.on("/config", HTTP_POST, handleDone);
+  server.onNotFound(handleNotFound);
+
+  serialPrintf("#MODULE_READY");
 
   connectToNetwork("","");
 }
 
 void loop() {
-  server.handleClient();                     // Listen for HTTP requests from clients
+  server.handleClient();
 
   String serialCmd = readFromSerialIfAvailable();
 
@@ -46,7 +61,7 @@ void processSerialCommand(String cmd) {
   }
   
   if (cmdChar == '0') {
-    configState();
+    configState(message);
   }
 
   if (cmdChar == '1') {
@@ -54,17 +69,29 @@ void processSerialCommand(String cmd) {
   }
 
   if (cmdChar == '2') {
-    sendDataToTCPServer(message);
+    sendDataToServer(message);
   }
 }
 
-void configState() {
+void configState(String message) {
+  String stationSSID = message.substring(0, message.indexOf('!'));
+  String stationPassword =  message.substring(message.indexOf('!')+1, message.length());
+
+  if (stationSSID.length() == 0 || stationPassword.length() == 0) {
+    Serial.println("Using default AP credentials");
+    
+    stationSSID = "Plant_Healthcheck_Station";
+    stationPassword = "123456789";
+  }
+
+  WiFi.disconnect();
   Serial.print("Setting soft-AP ... ");
-  boolean result = WiFi.softAP("ESPsoftAP_01", "123456789");
+  boolean result = WiFi.softAP(stationSSID, stationPassword);
   if(!result)
   {
     Serial.println("Failed!");
-
+    
+    serialPrintf("#AP_FAILED");
     return;
   }
 
@@ -73,29 +100,37 @@ void configState() {
   Serial.print("AP IP address: ");
   Serial.println(IP);
 
-  server.begin();                            // Actually start the server
+  server.begin();
+  
   Serial.println("HTTP server started");
+
+  serialPrintf("#AP_READY!%s", IP.toString().c_str());
 }
 
 void operationState() {
   server.stop();
   WiFi.softAPdisconnect (true);
-  
   WiFi.setAutoReconnect(false);
-  WiFi.disconnect();
   
-  connectToNetwork(ssid, password);
-  
-  Serial.println('\n');
-  Serial.println("Connection established!");  
-  Serial.print("IP address:\t");
-  Serial.println(WiFi.localIP());
-  
-  WiFi.setAutoConnect(true);
-  WiFi.setAutoReconnect(true);
+  bool isConnected = connectToNetwork(g_ssid, g_password);
+
+  if (isConnected) {
+    Serial.println('\n');
+    Serial.println("Connection established!");  
+    Serial.print("IP address:\t");
+    Serial.println(WiFi.localIP());
+    
+    WiFi.setAutoConnect(true);
+    WiFi.setAutoReconnect(true);
+    WiFi.persistent(true);
+    
+    serialPrintf("#WIFI_CONNECTED!%s", WiFi.localIP().toString().c_str());
+  } else {
+    serialPrintf("#WIFI_CONNECTION_FAILED");
+  }
 }
 
-void connectToNetwork(String ssid, String password) {
+bool connectToNetwork(String ssid, String password) {
   if (ssid == "" && password == "") {
     WiFi.begin();
   } else {
@@ -106,34 +141,45 @@ void connectToNetwork(String ssid, String password) {
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.print(++i); Serial.print(' ');
-  }
-}
 
-bool sendDataToTCPServer(String message) {
-  WiFiClient client;
-  const char * host = "192.168.88.207";
-  const int httpPort = 3333;
+    if (i==10) {
 
-  if (!client.connect(host, httpPort)) {
-    Serial.println("connection failed");
-    return false;
-  }
-
-  client.print("aa-1;0;1.1;2.2;3.11");
-  unsigned long timeout = millis();
-  while (client.available() == 0) {
-    if (millis() - timeout > 5000) {
-      Serial.println(">>> Client Timeout !");
-      client.stop();
       return false;
     }
   }
 
-  delay(500);
-
-  client.stop();
-  
   return true;
+}
+
+// 2#http://192.168.88.252:3000/insert!{"sensor_id":"value1", "command":0, "temperature":1.1, "humidity":2.22, "soil_moisture":3.33}
+bool sendDataToServer(String message) {
+  WiFiClient client;
+  HTTPClient http;
+
+  String serverName = message.substring(0, message.indexOf('!'));
+  String postMessage =  message.substring(message.indexOf('!')+1, message.length());
+  
+  http.begin(client, serverName);
+
+  http.addHeader("Content-Type", "application/json");
+  int httpResponseCode = http.POST(postMessage);
+
+  Serial.print("HTTP Response code: ");
+  Serial.println(httpResponseCode);
+  
+  http.end();
+
+  if (httpResponseCode >= 200 && httpResponseCode<=299) {
+    serialPrintf("#TRANSPORT_OK");
+    
+    return true;  
+  } else {
+    serialPrintf("#TRANSPORT_FAILED!%d", httpResponseCode);
+    
+    return false;  
+  }
+  
+  return false;
 }
 
 void handleRoot() {
@@ -146,17 +192,24 @@ void handleDone() {
       || server.arg("ssid") == NULL || server.arg("password") == NULL) {
     String s = ERROR_page;
     server.send(400, "text/html", s);
+
+    serialPrintf("#CONFIG_FAILED");
     return;
   }
 
-  ssid = server.arg("ssid");
-  password = server.arg("password");
-  Serial.println("Configuration:");
-  Serial.println(ssid);
-  Serial.println(password);
+  if (server.hasArg("sm-air") || server.hasArg("sm-water")
+      || server.arg("sm-air") != NULL || server.arg("sm-water") != NULL) {
+
+    serialPrintf("#CUSTOM_CFG!%s!%s",server.arg("sm-air").c_str(), server.arg("sm-water").c_str());
+  }
+
+  g_ssid = server.arg("ssid");
+  g_password = server.arg("password");
 
   String s = DONE_page;
   server.send(200, "text/html", s);
+
+  serialPrintf("#CONFIG_DONE");
 
   delay(3000);
   operationState();
@@ -168,16 +221,109 @@ void handleNotFound(){
 }
 
 String readFromSerialIfAvailable() {
-  String responseBuffer = "";
-  
-  if (Serial.available()) {
-    while (Serial.available()) {
-      char charIn = Serial.read();
-      responseBuffer += charIn;
-    }  
+  String responseBuffer;
+  char charIn;
+
+  unsigned long startTime = millis();
+
+  while ((millis() - startTime) < 3000)
+  {
+      if (Serial.available())
+      {
+          charIn = Serial.read();
+          responseBuffer += charIn;
+      }
+      if (responseBuffer.endsWith("\r\n\0"))
+      {
+          responseBuffer.trim();
+          return responseBuffer;
+      }
   }
+  if (!responseBuffer.endsWith("\r\n\0"))
+  {
+    responseBuffer.trim();
+    return "";
+  }
+  
+  return "";
+}
 
-  responseBuffer.trim();
-
-  return responseBuffer;
+/**
+ * --------------------------------------------------------------
+ * Perform simple printing of formatted data
+ * Supported conversion specifiers: 
+ *      d, i     signed int
+ *      u        unsigned int
+ *      ld, li   signed long
+ *      lu       unsigned long
+ *      f        double
+ *      c        char
+ *      s        string
+ *      %        '%'
+ * Usage: %[conversion specifier]
+ * Note: This function does not support these format specifiers: 
+ *      [flag][min width][precision][length modifier]
+ * --------------------------------------------------------------
+ */
+void serialPrintf(const char *fmt, ...) {
+  /* buffer for storing the formatted data */
+  char buf[SERIAL_PRINTF_MAX_BUFF];
+  char *pbuf = buf;
+  /* pointer to the variable arguments list */
+  va_list pargs;
+  
+  /* Initialise pargs to point to the first optional argument */
+  va_start(pargs, fmt);
+  /* Iterate through the formatted string to replace all 
+  conversion specifiers with the respective values */
+  while(*fmt) {
+    if(*fmt == '%') {
+      switch(*(++fmt)) {
+        case 'd': 
+        case 'i': 
+          pbuf += sprintf(pbuf, "%d", va_arg(pargs, int));
+          break;
+        case 'u': 
+          pbuf += sprintf(pbuf, "%u", va_arg(pargs, unsigned int));
+          break;
+        case 'l': 
+          switch(*(++fmt)) {
+            case 'd': 
+            case 'i': 
+              pbuf += sprintf(pbuf, "%ld", va_arg(pargs, long));
+              break;
+            case 'u': 
+              pbuf += sprintf( pbuf, "%lu", 
+                               va_arg(pargs, unsigned long));
+              break;
+          }
+          break;
+        case 'f': 
+          pbuf += strlen(dtostrf( va_arg(pargs, double), 
+                                  1, F_PRECISION, pbuf));
+          break;
+        
+        case 'c':
+          *(pbuf++) = (char)va_arg(pargs, int);
+          break;
+        case 's': 
+          pbuf += sprintf(pbuf, "%s", va_arg(pargs, char *));
+          break;
+        case '%':
+          *(pbuf++) = '%';
+          break;
+        default:
+          break;
+      }
+    } else {
+      *(pbuf++) = *fmt;
+    }
+    
+    fmt++;
+  }
+  
+  *pbuf = '\0';
+  
+  va_end(pargs);
+  Serial.println(buf);
 }
