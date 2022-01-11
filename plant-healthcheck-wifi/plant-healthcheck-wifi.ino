@@ -19,6 +19,7 @@ String readFromSerialIfAvailable();
 void processSerialCommand(String cmd);
 void configState(String message);
 void operationState();
+void idleState();
 bool sendDataToTCPServer(String message);
 
 void serialPrintf(const char *fmt, ...);
@@ -70,6 +71,10 @@ void processSerialCommand(String cmd) {
 
   if (cmdChar == '2') {
     sendDataToServer(message);
+  }
+
+  if (cmdChar == '9') {
+    idleState();
   }
 }
 
@@ -149,6 +154,13 @@ bool connectToNetwork(String ssid, String password) {
   }
 
   return true;
+}
+
+void idleState() {
+  server.stop();
+  WiFi.softAPdisconnect (true);
+  WiFi.setAutoReconnect(false);
+  WiFi.disconnect();
 }
 
 // 2#http://192.168.88.252:3000/insert!{"sensor_id":"value1", "command":0, "temperature":1.1, "humidity":2.22, "soil_moisture":3.33}
