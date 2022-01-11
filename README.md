@@ -1,5 +1,18 @@
 # plant-healthcheck-wifi
-ESP-8266 WiFi module source code. It receives data from Serial and sends it to an HTTP server
+ESP-8266 WiFi module source code. It receives data from Serial and sends it to an HTTP server.
+
+# Upstream commands
+| Command    | Description |
+| ----------- | ----------- |
+|  `0#ap_name!passowrd`     |  Sets up a WiFi configuration interface  (it has a default value if you only send `0`)    |
+| `1`| Connects to the latest configured WiFi Access Point. You should not send this command manually after a succesful configuration. |
+| `2#http://target_url!{"json":"data"}`| Sends a POST request to the given URL |
+| `9` | Idle state. Does not hosts an AP and does not connects to a WiFi AP |
+
+# Downstream commands
+| Command    | Description |
+| ----------- | ----------- |
+|       |        |
 
 # Upload to ESP-01
  
