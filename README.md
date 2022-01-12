@@ -1,18 +1,31 @@
-# plant-healthcheck-wifi
-ESP-8266 WiFi module source code. It receives data from Serial and sends it to an HTTP server.
+# Plant Healthcheck Wifi
+ESP-8266 WiFi module source code. It receives data from Serial and sends it to an HTTP server. In AP mode you can configure the WiFi network, then the module will connects to the selected network.
 
 # Upstream commands
 | Command    | Description |
 | ----------- | ----------- |
-|  `0#ap_name!passowrd`     |  Sets up a WiFi configuration interface  (it has a default value if you only send `0`)    |
+|  `0#ap_name!passowrd`     |  Sets up a WiFi configuration interface  (it has a default value if you only send `0`). Starts a HTTP server on 192.168.4.1    |
 | `1`| Connects to the latest configured WiFi Access Point. You should not send this command manually after a succesful configuration. |
 | `2#http://target_url!{"json":"data"}`| Sends a POST request to the given URL |
 | `9` | Idle state. Does not hosts an AP and does not connects to a WiFi AP |
 
 # Downstream commands
+
+The input from the Serial that begins with `#` is considered as a downstream command. It cames from the WiFi module.
 | Command    | Description |
 | ----------- | ----------- |
-|       |        |
+| #MODULE_READY | When the module boot ready. |
+| #IDLE_STATE_READY | When the module steps into the idle state. |
+| #AP_FAILED | When the AP state setup fails. Retry it after (use some delays) |
+| #AP_READY!{SERVER_IP} | When the AP state read, default IP: 192.168.4.1 |
+| #WIFI_CONNECTED!{CLIENT_IP} | When the module connects to a WiFi network successfully. |
+| #WIFI_CONNECTION_FAILED | When the module fails to connect to the WiFi network. |
+| #TRANSPORT_OK | When the HTTP transport success. |
+| #TRANSPORT_FAILED!{STATUS_CODE} | When the HTTP transport fails. Status code is -1 when there is no network connection. |
+| #CONFIG_FAILED | When the configuration sending fails in AP mode. |
+| #CUSTOM_CFG!{VAL1}!{VAL2} | Custom config with 2 values. |
+| #CONFIG_DONE | When the config succeeds. |
+
 
 # Upload to ESP-01
  
