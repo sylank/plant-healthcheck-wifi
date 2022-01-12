@@ -161,6 +161,8 @@ void idleState() {
   WiFi.softAPdisconnect (true);
   WiFi.setAutoReconnect(false);
   WiFi.disconnect();
+
+  serialPrintf("#IDLE_STATE_READY");
 }
 
 // 2#http://192.168.88.252:3000/insert!{"sensor_id":"value1", "command":0, "temperature":1.1, "humidity":2.22, "soil_moisture":3.33}
