@@ -5,13 +5,14 @@ ESP-8266 WiFi module source code. It receives data from Serial and sends it to a
 | Command    | Description |
 | ----------- | ----------- |
 |  `0#ap_name!passowrd`     |  Sets up a WiFi configuration interface  (it has a default value if you only send `0`). Starts a HTTP server on 192.168.4.1    |
-| `1`| Connects to the latest configured WiFi Access Point. You should not send this command manually after a succesful configuration. |
+| `1`| Connects to the latest configured WiFi Access Point. You should not send this command manually after a successful configuration. |
 | `2#http://target_url!{"json":"data"}`| Sends a POST request to the given URL |
+| `3` | Check if connected to the configured WiFi network |
 | `9` | Idle state. Does not hosts an AP and does not connects to a WiFi AP |
 
 # Downstream commands
 
-The input from the Serial that begins with `#` is considered as a downstream command. It cames from the WiFi module.
+The input from the Serial that begins with `#` is considered as a downstream command. It came from the WiFi module.
 | Command    | Description |
 | ----------- | ----------- |
 | #MODULE_READY | When the module boot ready. |
@@ -28,7 +29,7 @@ The input from the Serial that begins with `#` is considered as a downstream com
 
 
 # Upload to ESP-01
- 
+
 I am using an another Arduino UNO to flash the module.
 Computer -> Arduino UNO -> ESP-01
 
@@ -59,5 +60,5 @@ Computer -> Arduino UNO -> ESP-01
 1. Press the upload
 1. When the IDE wants to connect to the Arduino press the reset for ~1 sec. (It will turn on the flash mode on the ESP-01)
 1. When upload is done, disconnect the GPIO0 from the GND
-1. Press the Arduino's reset button 
+1. Press the Arduino's reset button
 1. It should send serial texts and it should work

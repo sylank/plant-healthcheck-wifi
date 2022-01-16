@@ -20,6 +20,7 @@ void processSerialCommand(String cmd);
 void configState(String message);
 void operationState();
 void idleState();
+void checkConnectionState();
 bool sendDataToTCPServer(String message);
 
 void serialPrintf(const char *fmt, ...);
@@ -71,6 +72,10 @@ void processSerialCommand(String cmd) {
 
   if (cmdChar == '2') {
     sendDataToServer(message);
+  }
+
+  if (cmdChar == '3') {
+    checkConnectionState();
   }
 
   if (cmdChar == '9') {
@@ -154,6 +159,14 @@ bool connectToNetwork(String ssid, String password) {
   }
 
   return true;
+}
+
+void checkConnectionState() {
+  if (WiFi.status() != WL_CONNECTED) {
+    serialPrintf("#WIFI_CONNECTED!%s", WiFi.localIP().toString().c_str());
+  } else {
+    serialPrintf("#WIFI_CONNECTION_FAILED");
+  }
 }
 
 void idleState() {
