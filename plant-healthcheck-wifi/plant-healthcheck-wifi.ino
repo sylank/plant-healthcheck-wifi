@@ -90,8 +90,8 @@ void configState(String message) {
   if (stationSSID.length() == 0 || stationPassword.length() == 0) {
     Serial.println("Using default AP credentials");
     
-    stationSSID = "Plant_Healthcheck_Station";
-    stationPassword = "123456789";
+    stationSSID = "IoT WiFi Station";
+    stationPassword = "";
   }
 
   WiFi.disconnect();
