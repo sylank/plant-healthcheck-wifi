@@ -94,6 +94,10 @@ void configState(String message) {
     stationPassword = "";
   }
 
+  if (stationPassword == "*") {
+    stationPassword = "";
+  }
+
   WiFi.disconnect();
   Serial.print("Setting soft-AP ... ");
   boolean result = WiFi.softAP(stationSSID, stationPassword);
