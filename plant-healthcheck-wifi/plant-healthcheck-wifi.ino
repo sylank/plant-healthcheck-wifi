@@ -16,12 +16,12 @@ void handleLogin();
 void handleNotFound();
 
 String readFromSerialIfAvailable();
-void processSerialCommand(String cmd);
-void configState(String message);
+void processSerialCommand(const String& cmd);
+void configState(const String& message);
 void operationState();
 void idleState();
 void checkConnectionState();
-bool sendDataToTCPServer(String message);
+bool sendDataToTCPServer(const String& message);
 
 void serialPrintf(const char *fmt, ...);
 
@@ -40,8 +40,6 @@ void setup() {
   server.onNotFound(handleNotFound);
 
   serialPrintf("#MODULE_READY");
-
-  operationState();
 }
 
 void loop() {
@@ -54,7 +52,7 @@ void loop() {
   }
 }
 
-void processSerialCommand(String cmd) {
+void processSerialCommand(const String& cmd) {
   char cmdChar = cmd[0];
   String message = "";
 
@@ -83,7 +81,7 @@ void processSerialCommand(String cmd) {
   }
 }
 
-void configState(String message) {
+void configState(const String& message) {
   String stationSSID = message.substring(0, message.indexOf('!'));
   String stationPassword =  message.substring(message.indexOf('!')+1, message.length());
 
@@ -144,7 +142,7 @@ void operationState() {
   }
 }
 
-bool connectToNetwork(String ssid, String password) {
+bool connectToNetwork(const String& ssid, const String& password) {
   if (ssid == "" && password == "") {
     WiFi.begin();
   } else {
@@ -166,7 +164,7 @@ bool connectToNetwork(String ssid, String password) {
 }
 
 void checkConnectionState() {
-  if (WiFi.status() != WL_CONNECTED) {
+  if (WiFi.status() == WL_CONNECTED) {
     serialPrintf("#WIFI_CONNECTED!%s", WiFi.localIP().toString().c_str());
   } else {
     serialPrintf("#WIFI_CONNECTION_FAILED");
@@ -183,7 +181,7 @@ void idleState() {
 }
 
 // 2#http://192.168.88.252:3000/insert!{"sensor_id":"value1", "command":0, "temperature":1.1, "humidity":2.22, "soil_moisture":3.33}
-bool sendDataToServer(String message) {
+bool sendDataToServer(const String& message) {
   WiFiClient client;
   HTTPClient http;
 
